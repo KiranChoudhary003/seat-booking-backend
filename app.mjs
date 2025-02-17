@@ -54,12 +54,10 @@ app.post("/scan", async (req, res) => {
     const data = await fs.readFile(DATA_FILE, "utf-8");
     let bookings = JSON.parse(data);
 
-    const scannedData = JSON.parse(qrData); // Parse QR data
+    const scannedData = JSON.parse(qrData)
 
     let matchedBooking = bookings.find(
       (b) =>
-        b.name === scannedData.name &&
-        b.email === scannedData.email &&
         b.contactNo === scannedData.contactNo &&
         b.institute === scannedData.institute
     );
