@@ -2,9 +2,10 @@
   "name": "seat-booked-backend",
   "version": "1.0.0",
   "main": "app.mjs",
+  "type": "module",
   "scripts": {
     "start": "nodemon app.mjs",
-    "type": "module"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
     "Seat",
