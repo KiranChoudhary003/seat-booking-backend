@@ -9,6 +9,7 @@ const DATA_FILE = "database.json";
 app.use(express.json());
 app.use(cors());
 
+// Ensure database file exists
 const ensureDatabaseFile = async () => {
   try {
     await fs.access(DATA_FILE);
@@ -19,42 +20,49 @@ const ensureDatabaseFile = async () => {
 
 ensureDatabaseFile();
 
+// Root route to check if the server is running
+app.get("/", (req, res) => {
+  res.send("Seat Booking Backend is Running!");
+});
+
+// Fetch all bookings
 app.get("/bookings", async (req, res) => {
   try {
     const data = await fs.readFile(DATA_FILE, "utf-8");
     const bookings = JSON.parse(data);
     res.json(bookings);
   } catch (error) {
+    console.error("Error reading data:", error);
     res.status(500).json({ message: "Error reading data", error });
   }
 });
 
+// Create a new booking
 app.post("/bookings", async (req, res) => {
   try {
     const newBooking = { ...req.body, attended: false }; 
     const data = await fs.readFile(DATA_FILE, "utf-8");
     const bookings = JSON.parse(data);
 
-    bookings.push(newBooking); 
-
+    bookings.push(newBooking);
     await fs.writeFile(DATA_FILE, JSON.stringify(bookings, null, 2));
+
     console.log("New Booking Saved:", newBooking);
-
-
     res.status(201).json({ message: "Booking saved!", newBooking });
   } catch (error) {
+    console.error("Error saving data:", error);
     res.status(500).json({ message: "Error saving data", error });
   }
 });
 
+// Scan QR and mark attendance
 app.post("/scan", async (req, res) => {
   try {
     const { qrData } = req.body;
-
     const data = await fs.readFile(DATA_FILE, "utf-8");
     let bookings = JSON.parse(data);
-
-    const scannedData = JSON.parse(qrData)
+    
+    const scannedData = JSON.parse(qrData);
 
     let matchedBooking = bookings.find(
       (b) =>
@@ -71,10 +79,12 @@ app.post("/scan", async (req, res) => {
       return res.json({ status: "Not Booked", message: "No matching record found!" });
     }
   } catch (error) {
+    console.error("Error processing QR scan:", error);
     res.status(500).json({ message: "Error processing QR scan", error });
   }
 });
 
+// Start the server
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
