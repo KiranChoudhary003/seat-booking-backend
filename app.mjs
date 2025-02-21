@@ -1,51 +1,42 @@
 import express from "express";
-import fs from "fs/promises";
 import cors from "cors";
+import mongoose from "mongoose";
+import Booking from "./models/userModel.mjs";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const DATA_FILE = "database.json"; 
+const MONGO_URI = process.env.MONGO_URI
+
+mongoose
+    .connect(MONGO_URI, {
+  })
+  .then(() => console.log("MongoDB Connected"))
+  .catch((err) => console.error("MongoDB Connection Error:", err));
 
 app.use(express.json());
 app.use(cors());
 
-// Ensure database file exists
-const ensureDatabaseFile = async () => {
-  try {
-    await fs.access(DATA_FILE);
-  } catch {
-    await fs.writeFile(DATA_FILE, "[]", "utf-8");
-  }
-};
-
-ensureDatabaseFile();
-
-// Root route to check if the server is running
 app.get("/", (req, res) => {
   res.send("Seat Booking Backend is Running!");
 });
 
-// Fetch all bookings
 app.get("/bookings", async (req, res) => {
   try {
-    const data = await fs.readFile(DATA_FILE, "utf-8");
-    const bookings = JSON.parse(data);
+    const bookings = await Booking.find();
     res.json(bookings);
   } catch (error) {
-    console.error("Error reading data:", error);
-    res.status(500).json({ message: "Error reading data", error });
+    console.error("Error fetching bookings:", error);
+    res.status(500).json({ message: "Error fetching data", error });
   }
 });
 
-// Create a new booking
 app.post("/bookings", async (req, res) => {
   try {
-    const newBooking = { ...req.body, attended: false }; 
-    const data = await fs.readFile(DATA_FILE, "utf-8");
-    const bookings = JSON.parse(data);
-
-    bookings.push(newBooking);
-    await fs.writeFile(DATA_FILE, JSON.stringify(bookings, null, 2));
+    const newBooking = new Booking({ ...req.body, attended: false });
+    await newBooking.save();
 
     console.log("New Booking Saved:", newBooking);
     res.status(201).json({ message: "Booking saved!", newBooking });
@@ -55,36 +46,46 @@ app.post("/bookings", async (req, res) => {
   }
 });
 
-// Scan QR and mark attendance
 app.post("/scan", async (req, res) => {
   try {
     const { qrData } = req.body;
-    const data = await fs.readFile(DATA_FILE, "utf-8");
-    let bookings = JSON.parse(data);
-    
-    const scannedData = JSON.parse(qrData);
+    const scannedData = typeof qrData === "string" ? JSON.parse(qrData) : qrData; 
 
-    let matchedBooking = bookings.find(
-      (b) =>
-        b.contactNo === scannedData.contactNo &&
-        b.institute === scannedData.institute
-    );
+    console.log("Scanned Data Received:", scannedData);
 
-    if (matchedBooking) {
-      matchedBooking.attended = true;
-      await fs.writeFile(DATA_FILE, JSON.stringify(bookings, null, 2));
+    const existingBooking = await Booking.findOne({
+      contactNo: scannedData.contactNo,
+      institute: scannedData.institute,
+    });
 
-      return res.json({ status: "Booked", message: "Attendance marked!" });
-    } else {
+    if (!existingBooking) {
+      console.log("No matching record found for:", scannedData);
       return res.json({ status: "Not Booked", message: "No matching record found!" });
     }
+
+    console.log("Matching booking found:", existingBooking);
+
+    const updatedBooking = await Booking.findOneAndUpdate(
+      { contactNo: scannedData.contactNo, institute: scannedData.institute },
+      { $set: { attended: true } }, 
+      { returnDocument: "after" }
+    );
+
+    console.log("Attendance Updated:", updatedBooking);
+
+    return res.json({
+      status: "Booked",
+      message: "Attendance marked successfully!",
+      updatedBooking,
+    });
   } catch (error) {
     console.error("Error processing QR scan:", error);
     res.status(500).json({ message: "Error processing QR scan", error });
   }
 });
 
-// Start the server
+
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
